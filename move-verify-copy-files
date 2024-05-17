@@ -1,0 +1,114 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use File::Copy::Recursive qw(move);
+
+# Source and destination locations
+my $source1 = "/path/to/source1";
+my $destination1 = "/path/to/destination1";
+my $destination2 = "/path/to/destination2";
+my $destination3 = "/path/to/destination3";
+my $destination4 = "/path/to/destination4";
+my $destination5 = "/path/to/destination5";
+my $data_source = "/path/to/data";
+my $extract_source = "/path/to/extract";
+my $archive_source = "/path/to/archive";
+
+# Move files from data, extract, and archive to new destinations
+move_files($data_source, $destination3);
+move_files($extract_source, $destination4);
+move_files($archive_source, $destination5);
+
+# Read the DAT file in source1
+my $dat_file = "$source1/stmtconf_99G.DAT";  # Updated DAT file name
+
+open(my $fh, '<', $dat_file) or die "Could not open file '$dat_file' $!";
+
+# Record name to search for
+my $record_name = "PRIVACYNOTICE0001";  # Record name
+
+# Offset and length of the record
+my $start_offset = 19;
+my $end_offset = 34;
+
+# Read DAT file records
+my %tif_files;
+
+while (my $line = <$fh>) {
+    chomp $line;
+    my $record_data = substr($line, $start_offset - 1, $end_offset - $start_offset + 1);
+    if ($record_data eq $record_name) {
+        # Start of the record
+        my $tif_filename = substr($line, 82, 23);  # Assuming TIF filename starts at offset 82 and length is 23
+        $tif_files{$tif_filename} = 1;
+    }
+}
+
+# Close the DAT file
+close($fh);
+
+# Sort and remove duplicates from the list of TIF filenames
+my @sorted_tif_files = sort keys %tif_files;
+
+# Flag to track errors
+my $error_flag = 0;
+
+# Verify if each TIF filename is present in destination1
+foreach my $tif_filename (@sorted_tif_files) {
+    my $tif_path = "$destination1/$tif_filename";
+    if (-e $tif_path) {
+        # TIF filename exists in destination1
+        print "TIF file $tif_filename exists in destination1\n";
+    } else {
+        print "Error: $tif_filename does not exist in $destination1\n";
+        $error_flag = 1;
+    }
+}
+
+# Copy S.DAT files from source1 to destination2
+opendir(my $dh, $source1) or die "Could not open directory '$source1' $!";
+while (my $file = readdir($dh)) {
+    next if ($file =~ /^\./); # Skip hidden files
+    if ($file =~ /^S_(.+)\.DAT$/) {
+        my $tif_filename = $1;
+        if (exists $tif_files{$tif_filename}) {
+            my $source_dat = "$source1/$file";
+            my $destination_dat = "$destination2/$file";
+            if (-e $source_dat) {
+                File::Copy::Recursive::move($source_dat, $destination_dat) or die "Move failed: $!";
+                print "Moved $source_dat to $destination_dat\n";
+            } else {
+                print "Error: $source_dat does not exist!\n";
+                $error_flag = 1;
+            }
+        }
+    }
+}
+closedir($dh);
+
+# Exit with an error if any error occurred
+if ($error_flag) {
+    exit 1;
+}
+
+# Function to move files from a folder to another location
+sub move_files {
+    my ($source, $destination) = @_;
+    opendir(my $dir_handle, $source) or die "Could not open directory '$source' $!";
+    my @files = readdir($dir_handle);
+    closedir($dir_handle);
+
+    unless (@files) {
+        print "Folder $source is empty\n";
+        return;
+    }
+
+    foreach my $file (@files) {
+        next if ($file =~ /^\./); # Skip hidden files
+        my $source_path = "$source/$file";
+        my $destination_path = "$destination/$file";
+        File::Copy::Recursive::move($source_path, $destination_path) or die "Move failed: $!";
+        print "Moved $source_path to $destination_path\n";
+    }
+}
