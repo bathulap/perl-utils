@@ -1,0 +1,54 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Spec;
+
+# Function to check if a directory has at least two files
+sub has_two_files {
+    my ($dir) = @_;
+    
+    # Open the directory
+    opendir(my $dh, $dir) or die "Could not open '$dir' for reading: $!\n";
+    
+    # Count the number of files
+    my $file_count = 0;
+    while (my $entry = readdir($dh)) {
+        next if ($entry eq '.' or $entry eq '..'); # Skip . and ..
+        $file_count++;
+        last if $file_count >= 2; # We only need to check if there are two files
+    }
+    
+    # Close the directory
+    closedir($dh);
+    
+    return $file_count >= 2;
+}
+
+# Read the log file and extract paths
+my $log_file = 'path/to/your/logfile.log'; # Change this to the path of your log file
+
+open(my $fh, '<', $log_file) or die "Could not open log file '$log_file': $!\n";
+while (my $line = <$fh>) {
+    chomp($line);
+    
+    if ($line =~ /^gPolNumberdir\s+(\S+)/) {
+        my $share_path = $1;
+
+        # Normalize path (remove extra spaces and backslashes)
+        $share_path =~ s/\\+/\\/g;
+        $share_path =~ s/\s+\\/\\/g;
+        $share_path =~ s/\\\s+/\\/g;
+
+        # Check if the share path has at least two files
+        if (-d $share_path) {
+            if (has_two_files($share_path)) {
+                print "The share path '$share_path' has two or more files.\n";
+            } else {
+                print "The share path '$share_path' does not have two files.\n";
+            }
+        } else {
+            print "The share path '$share_path' is not a directory or does not exist.\n";
+        }
+    }
+}
+close($fh);
