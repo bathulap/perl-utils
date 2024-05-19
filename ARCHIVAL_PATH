@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Spec;
+
+# Subroutine to check if directory contains both .pdf and .xml files
+sub check_files_in_directory {
+    my ($dir) = @_;
+    opendir(my $dh, $dir) or return 0; # Return 0 if directory cannot be opened
+    my @files = readdir($dh);
+    closedir($dh);
+
+    my $has_pdf = grep { /\.pdf$/i } @files;
+    my $has_xml = grep { /\.xml$/i } @files;
+
+    return $has_pdf && $has_xml;
+}
+
+# Log file path (change this to the actual log file path)
+my $log_file = 'path/to/logfile.log';
+
+# Array to store valid paths
+my @valid_paths;
+
+# Open the log file
+open(my $fh, '<', $log_file) or die "Could not open file '$log_file': $!";
+
+# Process the log file line by line
+while (my $line = <$fh>) {
+    chomp $line;
+    if ($line =~ /^gPolNumberdir/) {
+        # Extract path from the line (offset 16, length 60)
+        my $path = substr($line, 16, 60);
+        $path =~ s/\s+$//; # Remove trailing whitespace
+
+        # Check if the path is a valid directory
+        if (-d $path && check_files_in_directory($path)) {
+            push @valid_paths, $path;
+        }
+    }
+}
+
+# Close the log file
+close($fh);
+
+# Print the results
+my $num_valid_paths = scalar @valid_paths;
+print "Number of valid paths with both .pdf and .xml files: $num_valid_paths\n";
+
+foreach my $path (@valid_paths) {
+    print "Valid path: $path\n";
+}
+
+# Error handling
+if ($num_valid_paths == 0) {
+    print "No valid paths found with both .pdf and .xml files.\n";
+}
