@@ -1,0 +1,79 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+# Configuration
+my $directory = '.';  # Directory containing the files
+
+# Subroutine to read unique policy numbers from G.DAT files
+sub read_gdat_files {
+    my $directory = shift;
+    my %policies;
+
+    # Open the directory
+    opendir my $dir, $directory or die "Cannot open directory: $!";
+    while (my $file = readdir($dir)) {
+        next unless $file =~ /\.DAT$/i;
+        next unless $file =~ /^G\./i;
+
+        my $file_path = "$directory/$file";
+        open my $file_fh, '<', $file_path or die "Cannot open $file_path: $!";
+        while (my $line = <$file_fh>) {
+            my $policy_number = substr($line, 18, 14);  # Offset 19, length 14
+            $policy_number =~ s/\s+//g;  # Remove whitespace
+            $policies{$policy_number} = 1 if $policy_number;
+        }
+        close $file_fh;
+    }
+    closedir($dir);
+
+    return \%policies;
+}
+
+# Subroutine to read unique data numbers from BCH files
+sub read_bch_files {
+    my $directory = shift;
+    my %data_numbers;
+
+    # Open the directory
+    opendir my $dir, $directory or die "Cannot open directory: $!";
+    while (my $file = readdir($dir)) {
+        next unless $file =~ /\.bch$/i;
+        next unless $file =~ /_S70_/;
+        next unless -s "$directory/$file" > 0;
+
+        my $file_path = "$directory/$file";
+        open my $file_fh, '<', $file_path or die "Cannot open $file_path: $!";
+        while (my $line = <$file_fh>) {
+            my $data_number = substr($line, 6, 10);  # Offset 7, length 10
+            $data_number =~ s/\s+//g;  # Remove whitespace
+            $data_numbers{$data_number} = 1 if $data_number;
+        }
+        close $file_fh;
+    }
+    closedir($dir);
+
+    return \%data_numbers;
+}
+
+# Read G.DAT files and get unique policies
+my $gdat_policies = read_gdat_files($directory);
+my $gdat_policy_count = scalar keys %$gdat_policies;
+
+# Read BCH files and get unique data numbers
+my $bch_data_numbers = read_bch_files($directory);
+my $bch_data_count = scalar keys %$bch_data_numbers;
+
+# Check for matching unique data numbers between G.DAT and BCH files
+my $matches = 0;
+foreach my $policy (keys %$gdat_policies) {
+    $matches++ if exists $bch_data_numbers->{$policy};
+}
+
+print "G.DAT unique policy count: $gdat_policy_count\n";
+print "BCH unique data count: $bch_data_count\n";
+print "Matching unique data numbers: $matches\n";
+
+if ($matches == 0) {
+    print "No matching unique data numbers between G.DAT and BCH files.\n";
+}
